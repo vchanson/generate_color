@@ -12,6 +12,9 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "bp-color-library": "^1.1.1",
+    "color-name": "^2.1.0",
+    "color-namer": "^1.4.0",
     "gh-pages": "^6.3.0",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4"
