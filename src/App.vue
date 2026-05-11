@@ -1,4 +1,5 @@
 <script setup>
+
 import { ref } from 'vue'
 import vinylImg from '../src/assets/фон.png'
 import polaroidImg from '../src/assets/полароид.png'
@@ -6,6 +7,8 @@ import closeIcon from '../src/assets/закрыть.png'
 import generateButtonImg from '../src/assets/кнопка2.png'
 import addButtonImg from '../src/assets/кнопка.png'
 import ColorNamer from 'color-namer'
+import HelloWorld from './components/HelloWorld.vue'
+import popa from './components/popa.vue'
 
 // Иконки для панели
 import copyIcon from '../src/assets/copy.png'
@@ -167,6 +170,9 @@ const isMaxReached = () => {
 const canGenerate = () => {
   return !hasAnyPolaroid()
 }
+
+
+
 </script>
 
 <template>
