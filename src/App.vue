@@ -1,84 +1,169 @@
 <script setup>
 import { ref } from 'vue'
-import vinylImg from '../src/assets/фон.png' // пластинка (фон)
-import polaroidImg from '../src/assets/полароид.png' // полароид
-import closeIcon from '../src/assets/закрыть.png' // иконка закрытия
-import generateButtonImg from '../src/assets/кнопка2.png' // кнопка сгенерировать
-import addButtonImg from '../src/assets/кнопка.png' // кнопка добавить
+import vinylImg from '../src/assets/фон.png'
+import polaroidImg from '../src/assets/полароид.png'
+import closeIcon from '../src/assets/закрыть.png'
+import generateButtonImg from '../src/assets/кнопка2.png'
+import addButtonImg from '../src/assets/кнопка.png'
+import ColorNamer from 'color-namer'
 
-// Массив полароидов с фиксированными слотами
+// Иконки для панели
+import copyIcon from '../src/assets/copy.png'
+import replaceIcon from '../src/assets/swap.png'
+import editIcon from '../src/assets/edit.png'
+import heartIcon from '../src/assets/heart.png'
+import heartFilledIcon from '../src/assets/heart-filled.png'
+
+// Массив полароидов
 const polaroids = ref({
-  slot1: null, // позиция 1 (верхняя)
-  slot2: null, // позиция 2 (средняя)
-  slot3: null  // позиция 3 (нижняя)
+  slot1: null,
+  slot2: null,
+  slot3: null
 })
+
+// Состояния
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastTimeout = ref(null)
 
 let nextId = 1
 
 // Функция генерации случайного цвета
 const generateRandomColor = () => {
-  return '#' + Math.floor(Math.random() * 16777215).toString(16)
+  return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
 }
 
-// Функция первой генерации (когда нет ни одного полароида)
+// Функция получения названия цвета через библиотеку color-namer
+const getColorName = (hex) => {
+  try {
+    const names = ColorNamer(hex)
+    const name = names.ntc?.[0]?.name || 
+                 names.basic?.[0]?.name || 
+                 names.html?.[0]?.name ||
+                 names.x11?.[0]?.name ||
+                 'Unknown Color'
+    return name
+  } catch (error) {
+    console.error('Ошибка определения цвета:', error)
+    return 'Unknown Color'
+  }
+}
+
+// Показать всплывающее сообщение
+const showToastMessage = (message) => {
+  if (toastTimeout.value) clearTimeout(toastTimeout.value)
+  toastMessage.value = message
+  showToast.value = true
+  toastTimeout.value = setTimeout(() => {
+    showToast.value = false
+  }, 2000)
+}
+
+// Функция копирования цвета
+const copyColor = async (color) => {
+  try {
+    await navigator.clipboard.writeText(color)
+    showToastMessage(`Скопировано!`)
+  } catch (err) {
+    console.error('Ошибка копирования:', err)
+  }
+}
+
+// Функция замены цвета
+const replaceColor = (slot) => {
+  const newColor = generateRandomColor()
+  if (slot === 1) polaroids.value.slot1.color = newColor
+  if (slot === 2) polaroids.value.slot2.color = newColor
+  if (slot === 3) polaroids.value.slot3.color = newColor
+}
+
+// Редактирование цвета
+const editColor = (slot) => {
+  const input = document.createElement('input')
+  input.type = 'color'
+  input.value = slot === 1 ? polaroids.value.slot1?.color : 
+                 slot === 2 ? polaroids.value.slot2?.color : 
+                 polaroids.value.slot3?.color
+  
+  input.addEventListener('input', (e) => {
+    const newColor = e.target.value
+    if (slot === 1 && polaroids.value.slot1) polaroids.value.slot1.color = newColor
+    if (slot === 2 && polaroids.value.slot2) polaroids.value.slot2.color = newColor
+    if (slot === 3 && polaroids.value.slot3) polaroids.value.slot3.color = newColor
+  })
+  
+  input.click()
+}
+
+// Добавить/удалить из избранного
+const toggleFavorite = (slot) => {
+  const polaroid = getPolaroidBySlot(slot)
+  if (polaroid) {
+    polaroid.isFavorite = !polaroid.isFavorite
+  }
+}
+
+const getPolaroidBySlot = (slot) => {
+  if (slot === 1) return polaroids.value.slot1
+  if (slot === 2) return polaroids.value.slot2
+  if (slot === 3) return polaroids.value.slot3
+  return null
+}
+
+// Функция первой генерации
 const generateFirst = () => {
   if (polaroids.value.slot1 === null && polaroids.value.slot2 === null && polaroids.value.slot3 === null) {
     polaroids.value.slot1 = {
       id: nextId++,
       color: generateRandomColor(),
-      slot: 1
+      slot: 1,
+      isFavorite: false
     }
   }
 }
 
-// Функция добавления полароида в первый свободный слот
+// Функция добавления полароида
 const addPolaroid = () => {
   if (polaroids.value.slot1 === null) {
     polaroids.value.slot1 = {
       id: nextId++,
       color: generateRandomColor(),
-      slot: 1
+      slot: 1,
+      isFavorite: false
     }
   } 
   else if (polaroids.value.slot2 === null) {
     polaroids.value.slot2 = {
       id: nextId++,
       color: generateRandomColor(),
-      slot: 2
+      slot: 2,
+      isFavorite: false
     }
   } 
   else if (polaroids.value.slot3 === null) {
     polaroids.value.slot3 = {
       id: nextId++,
       color: generateRandomColor(),
-      slot: 3
+      slot: 3,
+      isFavorite: false
     }
   }
 }
 
-// Функция удаления полароида по слоту
 const closePolaroid = (slot) => {
   if (slot === 1) polaroids.value.slot1 = null
   if (slot === 2) polaroids.value.slot2 = null
   if (slot === 3) polaroids.value.slot3 = null
 }
 
-// Проверка, есть ли хотя бы один полароид на экране
 const hasAnyPolaroid = () => {
   return polaroids.value.slot1 !== null || polaroids.value.slot2 !== null || polaroids.value.slot3 !== null
 }
 
-// Проверка, можно ли добавить новый полароид
-const canAdd = () => {
-  return polaroids.value.slot1 === null || polaroids.value.slot2 === null || polaroids.value.slot3 === null
-}
-
-// Проверка, достигнут ли максимум
 const isMaxReached = () => {
   return polaroids.value.slot1 && polaroids.value.slot2 && polaroids.value.slot3
 }
 
-// Можно ли сгенерировать первый полароид
 const canGenerate = () => {
   return !hasAnyPolaroid()
 }
@@ -89,17 +174,14 @@ const canGenerate = () => {
     <div class="background-wrapper">
       <img :src="vinylImg" class="background-image" alt="Пластинка">
       
-      <!-- Заголовок сверху по центру -->
       <h1 class="main-title">Генератор цветов</h1>
       
-      <!-- Кнопка генерации -->
       <div class="generate-button-container">
         <button class="generate-button" @click="generateFirst" :disabled="!canGenerate()">
           <span>Сгенерировать</span>
         </button>
       </div>
       
-      <!-- Кнопка добавления -->
       <div class="add-button-container" v-if="hasAnyPolaroid()">
         <button class="add-button" @click="addPolaroid" :disabled="isMaxReached()">
           <span>Добавить</span>
@@ -108,7 +190,26 @@ const canGenerate = () => {
       
       <!-- Полароид 1 -->
       <div v-if="polaroids.slot1" class="polaroid-wrapper polaroid-slot-1">
-        <div class="color-square" :style="{ backgroundColor: polaroids.slot1.color }"></div>
+        <div class="color-square" :style="{ backgroundColor: polaroids.slot1.color }">
+          <div class="action-panel">
+            <button class="action-btn" @click="copyColor(polaroids.slot1.color)" title="Копировать цвет">
+              <img :src="copyIcon" alt="Копировать">
+            </button>
+            <button class="action-btn" @click="replaceColor(1)" title="Сгенерировать новый цвет">
+              <img :src="replaceIcon" alt="Заменить">
+            </button>
+            <button class="action-btn" @click="editColor(1)" title="Редактировать цвет">
+              <img :src="editIcon" alt="Редактировать">
+            </button>
+            <button class="action-btn" @click="toggleFavorite(1)" :title="polaroids.slot1.isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'">
+              <img :src="polaroids.slot1.isFavorite ? heartFilledIcon : heartIcon" alt="Избранное">
+            </button>
+          </div>
+          <div class="color-name-top">{{ getColorName(polaroids.slot1.color) }}</div>
+          <div class="color-info">
+            <div class="color-code">{{ polaroids.slot1.color }}</div>
+          </div>
+        </div>
         <img :src="polaroidImg" class="polaroid" alt="Полароид">
         <button class="close-button" @click="closePolaroid(1)">
           <img :src="closeIcon" alt="Закрыть">
@@ -117,7 +218,26 @@ const canGenerate = () => {
       
       <!-- Полароид 2 -->
       <div v-if="polaroids.slot2" class="polaroid-wrapper polaroid-slot-2">
-        <div class="color-square" :style="{ backgroundColor: polaroids.slot2.color }"></div>
+        <div class="color-square" :style="{ backgroundColor: polaroids.slot2.color }">
+          <div class="action-panel">
+            <button class="action-btn" @click="copyColor(polaroids.slot2.color)" title="Копировать цвет">
+              <img :src="copyIcon" alt="Копировать">
+            </button>
+            <button class="action-btn" @click="replaceColor(2)" title="Сгенерировать новый цвет">
+              <img :src="replaceIcon" alt="Заменить">
+            </button>
+            <button class="action-btn" @click="editColor(2)" title="Редактировать цвет">
+              <img :src="editIcon" alt="Редактировать">
+            </button>
+            <button class="action-btn" @click="toggleFavorite(2)" :title="polaroids.slot2.isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'">
+              <img :src="polaroids.slot2.isFavorite ? heartFilledIcon : heartIcon" alt="Избранное">
+            </button>
+          </div>
+          <div class="color-name-top">{{ getColorName(polaroids.slot2.color) }}</div>
+          <div class="color-info">
+            <div class="color-code">{{ polaroids.slot2.color }}</div>
+          </div>
+        </div>
         <img :src="polaroidImg" class="polaroid" alt="Полароид">
         <button class="close-button" @click="closePolaroid(2)">
           <img :src="closeIcon" alt="Закрыть">
@@ -126,7 +246,26 @@ const canGenerate = () => {
       
       <!-- Полароид 3 -->
       <div v-if="polaroids.slot3" class="polaroid-wrapper polaroid-slot-3">
-        <div class="color-square" :style="{ backgroundColor: polaroids.slot3.color }"></div>
+        <div class="color-square" :style="{ backgroundColor: polaroids.slot3.color }">
+          <div class="action-panel">
+            <button class="action-btn" @click="copyColor(polaroids.slot3.color)" title="Копировать цвет">
+              <img :src="copyIcon" alt="Копировать">
+            </button>
+            <button class="action-btn" @click="replaceColor(3)" title="Сгенерировать новый цвет">
+              <img :src="replaceIcon" alt="Заменить">
+            </button>
+            <button class="action-btn" @click="editColor(3)" title="Редактировать цвет">
+              <img :src="editIcon" alt="Редактировать">
+            </button>
+            <button class="action-btn" @click="toggleFavorite(3)" :title="polaroids.slot3.isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'">
+              <img :src="polaroids.slot3.isFavorite ? heartFilledIcon : heartIcon" alt="Избранное">
+            </button>
+          </div>
+          <div class="color-name-top">{{ getColorName(polaroids.slot3.color) }}</div>
+          <div class="color-info">
+            <div class="color-code">{{ polaroids.slot3.color }}</div>
+          </div>
+        </div>
         <img :src="polaroidImg" class="polaroid" alt="Полароид">
         <button class="close-button" @click="closePolaroid(3)">
           <img :src="closeIcon" alt="Закрыть">
@@ -134,9 +273,15 @@ const canGenerate = () => {
       </div>
     </div>
     
-    <!-- Информация о лимите -->
+    <!-- Всплывающее уведомление -->
+    <transition name="toast">
+      <div v-if="showToast" class="toast-notification">
+        {{ toastMessage }}
+      </div>
+    </transition>
+    
     <div class="info-wrapper" v-if="isMaxReached()">
-      <p class="limit-info">Достигнут максимум (3 полароида)</p>
+      <p class="limit-info">Достигнут лимит (3 цвета)</p>
     </div>
   </div>
 </template>
@@ -154,7 +299,6 @@ const canGenerate = () => {
   overflow-x: hidden;
 }
 
-/* Контейнер для фоновой картинки */
 .background-wrapper {
   position: relative;
   width: 100%;
@@ -162,7 +306,6 @@ const canGenerate = () => {
   background-color: #241313;
 }
 
-/* Фоновая картинка растянута на весь экран */
 .background-image {
   width: 100%;
   height: 100vh;
@@ -171,7 +314,6 @@ const canGenerate = () => {
   display: block;
 }
 
-/* Заголовок сверху по центру */
 .main-title {
   position: absolute;
   top: 5%;
@@ -186,7 +328,6 @@ const canGenerate = () => {
   font-weight: bold;
 }
 
-/* Контейнер кнопки генерации */
 .generate-button-container {
   position: absolute;
   top: 20%;
@@ -194,7 +335,6 @@ const canGenerate = () => {
   z-index: 20;
 }
 
-/* Кнопка генерации */
 .generate-button {
   display: flex;
   align-items: center;
@@ -218,7 +358,6 @@ const canGenerate = () => {
   display: block;
   color: #241313;
   font-weight: bold;
-  text-shadow: none;
   background: transparent;
 }
 
@@ -227,16 +366,11 @@ const canGenerate = () => {
   transform: translateY(-2px);
 }
 
-.generate-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
 .generate-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Контейнер кнопки добавления */
 .add-button-container {
   position: absolute;
   top: 32%;
@@ -244,7 +378,6 @@ const canGenerate = () => {
   z-index: 20;
 }
 
-/* Кнопка добавления */
 .add-button {
   display: flex;
   align-items: center;
@@ -268,7 +401,6 @@ const canGenerate = () => {
   display: block;
   color: #241313;
   font-weight: bold;
-  text-shadow: none;
   background: transparent;
 }
 
@@ -277,23 +409,17 @@ const canGenerate = () => {
   transform: translateY(-2px);
 }
 
-.add-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
 .add-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Уменьшенные размеры полароидов */
 .polaroid-wrapper {
   position: absolute;
-  width: 120px;
-  height: 160px;
+  width: 150px;
+  height: 200px;
 }
 
-/* Первый полароид - верх */
 .polaroid-slot-1 {
   top: 18%;
   left: 25%;
@@ -301,7 +427,6 @@ const canGenerate = () => {
   z-index: 1;
 }
 
-/* Второй полароид - центр, наклон вправо */
 .polaroid-slot-2 {
   top: 42%;
   left: 28%;
@@ -309,7 +434,6 @@ const canGenerate = () => {
   z-index: 10;
 }
 
-/* Третий полароид - низ */
 .polaroid-slot-3 {
   top: 66%;
   left: 25%;
@@ -323,9 +447,97 @@ const canGenerate = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: #ff6b6b;
   z-index: 1;
   box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.action-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  transform: translateY(-100%);
+  transition: transform 0.5s ease-in-out;
+  z-index: 10;
+}
+
+.color-square:hover .action-panel {
+  transform: translateY(0);
+}
+
+.action-btn {
+  background: white;
+  border: none;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.action-btn:hover {
+  background: #e0e0e0;
+}
+
+.action-btn img {
+  width: 16px;
+  height: 16px;
+}
+
+/* Название цвета - подвинуто ниже (было top: 20%, стало top: 35%) */
+.color-name-top {
+  position: absolute;
+  top: 35%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+  z-index: 10;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 8px;
+  margin: 0 auto;
+  width: fit-content;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* HEX код снизу */
+.color-info {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 10;
+}
+
+.color-code {
+  color: white;
+  font-weight: bold;
+  font-size: 11px;
+  background: rgba(0,0,0,0.7);
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  font-family: monospace;
 }
 
 .polaroid {
@@ -336,6 +548,7 @@ const canGenerate = () => {
   height: 100%;
   object-fit: fill;
   z-index: 2;
+  pointer-events: none;
 }
 
 .close-button {
@@ -363,7 +576,29 @@ const canGenerate = () => {
   transform: scale(1.1);
 }
 
-/* Информация о лимите */
+.toast-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from, .toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
 .info-wrapper {
   position: absolute;
   bottom: 5%;
@@ -381,56 +616,54 @@ const canGenerate = () => {
   text-align: center;
 }
 
-/* Адаптация для разных экранов */
+/* Адаптация */
 @media (max-width: 1200px) {
   .polaroid-wrapper {
-    width: 100px;
-    height: 133px;
+    width: 130px;
+    height: 173px;
   }
   .polaroid-slot-1 { top: 16%; left: 23%; }
   .polaroid-slot-2 { top: 40%; left: 26%; }
   .polaroid-slot-3 { top: 64%; left: 23%; }
-  .main-title { font-size: 32px; }
-  .generate-button, .add-button { width: 130px; height: 60px; font-size: 14px; }
-  .add-button-container { top: 30%; }
+  .color-name-top { top: 33%; font-size: 9px; }
 }
 
 @media (max-width: 768px) {
   .polaroid-wrapper {
-    width: 85px;
-    height: 113px;
+    width: 100px;
+    height: 133px;
   }
   .polaroid-slot-1 { top: 15%; left: 20%; }
   .polaroid-slot-2 { top: 38%; left: 23%; }
   .polaroid-slot-3 { top: 61%; left: 20%; }
-  .main-title { font-size: 24px; white-space: normal; width: 90%; text-align: center; }
-  .generate-button-container, .add-button-container { right: 3%; }
-  .generate-button, .add-button { width: 110px; height: 50px; font-size: 12px; }
-  .add-button-container { top: 28%; }
-  .generate-button-container { top: 18%; }
+  .action-panel { gap: 6px; padding: 6px; }
+  .action-btn { width: 24px; height: 24px; }
+  .action-btn img { width: 12px; height: 12px; }
+  .color-name-top { top: 32%; font-size: 8px; padding: 3px 6px; white-space: nowrap; }
+  .color-code { font-size: 9px; padding: 3px 6px; }
 }
 
 @media (max-width: 480px) {
   .polaroid-wrapper {
-    width: 70px;
-    height: 93px;
+    width: 80px;
+    height: 106px;
   }
   .polaroid-slot-1 { top: 18%; left: 15%; }
   .polaroid-slot-2 { top: 40%; left: 18%; }
   .polaroid-slot-3 { top: 62%; left: 15%; }
-  .main-title { font-size: 20px; }
-  .generate-button, .add-button { width: 100px; height: 45px; font-size: 10px; }
-  .add-button-container { top: 30%; }
+  .color-name-top { top: 30%; font-size: 7px; padding: 2px 4px; white-space: nowrap; }
+  .color-code { font-size: 7px; padding: 2px 4px; }
 }
 
 @media (min-width: 1440px) {
   .polaroid-wrapper {
-    width: 140px;
-    height: 186px;
+    width: 180px;
+    height: 240px;
   }
   .polaroid-slot-1 { top: 18%; left: 27%; }
   .polaroid-slot-2 { top: 43%; left: 30%; }
   .polaroid-slot-3 { top: 68%; left: 27%; }
-  .generate-button, .add-button { width: 170px; height: 80px; font-size: 18px; }
+  .color-name-top { top: 38%; font-size: 12px; }
+  .color-code { font-size: 13px; }
 }
 </style>
