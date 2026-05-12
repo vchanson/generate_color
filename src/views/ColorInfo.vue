@@ -1,80 +1,129 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import btnGenImg from '../assets/кнопка2.png'
 
-const route = useRoute()
 const router = useRouter()
+const route = useRoute()
 
-// Получаем HEX из URL (например, из /color-info/FF349E)
-const mainHex = computed(() => route.params.hex.startsWith('#') ? route.params.hex : '#' + route.params.hex)
+// Основной цвет (угол Hue)
+const baseHue = ref(parseInt(route.params.hex, 16) || 0)
+const currentHex = ref('#' + route.params.hex)
+const wheelRef = ref(null)
 
-// Генерируем простые вариации цвета для палитры внизу
-const palette = computed(() => {
-    return [
-        mainHex.value,
-        adjustBrightness(mainHex.value, -20),
-        adjustBrightness(mainHex.value, 20),
-        adjustBrightness(mainHex.value, 40),
-    ]
-})
+// Выбранная схема сочетания
+const selectedScheme = ref('analogous')
 
-// Функция для изменения яркости (упрощенная)
-function adjustBrightness(hex, percent) {
-    let num = parseInt(hex.replace('#', ''), 16),
-        amt = Math.round(2.55 * percent),
-        R = (num >> 16) + amt,
-        G = (num >> 8 & 0x00FF) + amt,
-        B = (num & 0x0000FF) + amt;
-    return "#" + (0x1000000 + (R < 255 ? R < 0 ? 0 : R : 255) * 0x10000 + (G < 255 ? G < 0 ? 0 : G : 255) * 0x100 + (B < 255 ? B < 0 ? 0 : B : 255)).toString(16).slice(1);
+const schemes = {
+    monochromatic: { label: 'Монохром', offsets: [0, 0, 0, 0] }, // Тут логика сложнее (меняем яркость)
+    analogous: { label: 'Аналоговая', offsets: [-30, -15, 15, 30] },
+    complementary: { label: 'Контраст', offsets: [180, 180, 0, 0] },
+    triadic: { label: 'Триада', offsets: [120, 240, 0, 0] },
+    tetradic: { label: 'Тетрада', offsets: [90, 180, 270, 0] }
 }
 
-const goBack = () => router.back()
+// Автоматическое вычисление палитры по правилам
+const computedPalette = computed(() => {
+    const h = getHueFromHex(currentHex.value)
+    const scheme = schemes[selectedScheme.value]
+
+    // Создаем массив из 5 цветов (1 основной + 4 вычисленных)
+    const palette = [currentHex.value]
+
+    scheme.offsets.forEach(offset => {
+        if (offset !== 0 || palette.length < 5) {
+            let newHue = (h + offset) % 360
+            if (newHue < 0) newHue += 360
+            palette.push(hslToHex(newHue, 80, 50))
+        }
+    })
+
+    return palette.slice(0, 5)
+})
+
+// --- ЛОГИКА КРУГА ---
+const handleWheelClick = (event) => {
+    if (!wheelRef.value) return
+    const rect = wheelRef.value.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const x = event.clientX - centerX
+    const y = event.clientY - centerY
+    let angle = Math.atan2(y, x) * (180 / Math.PI)
+    if (angle < 0) angle += 360
+    currentHex.value = hslToHex(angle, 80, 50)
+}
+
+// Вспомогательные функции
+function getHueFromHex(hex) {
+    let r = parseInt(hex.slice(1, 3), 16) / 255
+    let g = parseInt(hex.slice(3, 5), 16) / 255
+    let b = parseInt(hex.slice(5, 7), 16) / 255
+    let max = Math.max(r, g, b), min = Math.min(r, g, b)
+    let h, d = max - min
+    if (max === min) h = 0
+    else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break
+            case g: h = (b - r) / d + 2; break
+            case b: h = (r - g) / d + 4; break
+        }
+        h /= 6
+    }
+    return h * 360
+}
+
+function hslToHex(h, s, l) {
+    l /= 100; s /= 100
+    const a = s * Math.min(l, 1 - l)
+    const f = n => {
+        const k = (n + h / 30) % 12
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+        return Math.round(255 * color).toString(16).padStart(2, '0')
+    }
+    return `#${f(0)}${f(8)}${f(4)}`
+}
 </script>
 
 <template>
-    <div class="details-wrapper">
-        <button class="back-btn" @click="goBack">← Назад</button>
+    <div class="color-details-page">
 
-        <div class="content-container">
-            <h1 class="main-title">Цветовой круг</h1>
-            <p class="description">
-                Подбирайте гармоничные цветовые палитры на цветовом круге.
-                Здесь представлена детальная информация о выбранном оттенке.
-            </p>
+        <div class="interface-layer">
+            <h1 class="title">ГАРМОНИЯ ЦВЕТА</h1>
 
-            <div class="main-grid">
-                <div class="left-side">
-                    <div class="input-group">
-                        <label>Основной цвет</label>
-                        <div class="hex-display">
-                            <div class="color-preview" :style="{ backgroundColor: mainHex }"></div>
-                            <input type="text" :value="mainHex.toUpperCase()" readonly>
+            <div class="main-layout">
+                <div class="info-side">
+                    <div class="glass-card scheme-selector">
+                        <label class="section-label">ПРАВИЛО СОЧЕТАНИЯ</label>
+                        <div class="scheme-buttons">
+                            <button v-for="(data, key) in schemes" :key="key"
+                                :class="{ active: selectedScheme === key }" @click="selectedScheme = key">
+                                {{ data.label }}
+                            </button>
                         </div>
                     </div>
 
-                    <div class="palette-section">
-                        <label>Палитра</label>
-                        <div class="colors-row">
-                            <div v-for="color in palette" :key="color" class="palette-card">
-                                <div class="card-fill" :style="{ backgroundColor: color }">
-                                    <span class="info-icon">i</span>
+                    <div class="glass-card result-palette">
+                        <label class="section-label">ВЫЧИСЛЕННАЯ ПАЛИТРА</label>
+                        <div class="palette-display">
+                            <div v-for="(color, i) in computedPalette" :key="i" class="palette-column">
+                                <div class="color-pillar" :style="{ backgroundColor: color }">
+                                    <span class="pillar-hex">{{ color }}</span>
                                 </div>
-                                <span class="card-hex">{{ color.toUpperCase() }}</span>
                             </div>
                         </div>
                     </div>
+
+                    <button class="img-btn back-btn" @click="router.push('/palette')">
+                        <img :src="btnGenImg" class="btn">
+                        <span class="btn-label">НАЗАД</span>
+                    </button>
                 </div>
 
-                <div class="right-side">
-                    <div class="wheel-container">
-                        <div class="color-wheel">
-                            <div class="wheel-pointer" :style="{ backgroundColor: mainHex }"></div>
-                        </div>
-                    </div>
-                    <div class="brightness-slider">
-                        <div class="slider-track"
-                            :style="{ background: `linear-gradient(to right, #000, ${mainHex}, #fff)` }"></div>
-                        <div class="slider-thumb"></div>
+                <div class="wheel-side">
+                    <div class="wheel-outer-frame">
+                        <div class="color-wheel" ref="wheelRef" @mousedown="handleWheelClick"></div>
+                        <div class="wheel-pointer main" :style="{ backgroundColor: currentHex }"></div>
                     </div>
                 </div>
             </div>
@@ -83,169 +132,155 @@ const goBack = () => router.back()
 </template>
 
 <style scoped>
-.details-wrapper {
-    min-height: 100vh;
-    background-color: #121212;
+/* Базовые стили страницы */
+.color-details-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #241313;
+    background-image: repeating-linear-gradient(0deg, #241313, #241313 40px, #331a1a 40px, #331a1a 80px);
+    z-index: 2000;
+    overflow: hidden;
     color: white;
-    padding: 40px;
-    font-family: sans-serif;
 }
 
-.back-btn {
-    background: none;
-    border: 1px solid #444;
-    color: #ccc;
-    padding: 8px 16px;
-    border-radius: 5px;
-    cursor: pointer;
+
+.interface-layer {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+}
+
+.main-layout {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    max-width: 1200px;
+}
+
+.glass-card {
+    background: rgba(0, 0, 0, 0.6);
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     margin-bottom: 20px;
 }
 
-.content-container {
-    max-width: 1100px;
-    margin: 0 auto;
-}
-
-.main-title {
-    font-size: 42px;
-    margin-bottom: 10px;
-}
-
-.description {
-    color: #888;
-    margin-bottom: 40px;
-    font-size: 16px;
-}
-
-.main-grid {
+/* Кнопки выбора схемы */
+.scheme-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 60px;
+    gap: 8px;
 }
 
-label {
-    display: block;
-    margin-bottom: 15px;
-    font-weight: bold;
-    font-size: 18px;
-}
-
-/* Левая часть */
-.hex-display {
-    display: flex;
-    align-items: center;
-    background: #252525;
-    padding: 10px;
-    border-radius: 8px;
-    width: fit-content;
-    gap: 15px;
-    border: 1px solid #333;
-}
-
-.color-preview {
-    width: 40px;
-    height: 40px;
-    border-radius: 4px;
-}
-
-.hex-display input {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 18px;
-    font-family: monospace;
-    width: 100px;
-    outline: none;
-}
-
-.palette-section {
-    margin-top: 50px;
-}
-
-.colors-row {
-    display: flex;
-    gap: 15px;
-}
-
-.palette-card {
-    width: 100px;
-}
-
-.card-fill {
-    height: 120px;
-    border-radius: 8px;
-    position: relative;
-    margin-bottom: 10px;
-}
-
-.info-icon {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(255, 255, 255, 0.3);
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.scheme-buttons button {
+    background: #1a0f0f;
+    border: 1px solid #3d2525;
+    color: #888;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
     font-size: 12px;
 }
 
-.card-hex {
-    font-family: monospace;
-    font-size: 14px;
-    color: #aaa;
+.scheme-buttons button.active {
+    background: #3d2525;
+    color: white;
+    border-color: #666;
 }
 
-/* Правая часть (Круг) */
-.wheel-container {
+/* Отображение палитры столбиками */
+.palette-display {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 30px;
+    gap: 10px;
+    height: 180px;
+    margin-top: 10px;
+}
+
+.palette-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.color-pillar {
+    height: 100%;
+    width: 100%;
+    border-radius: 8px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pillar-hex {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 4px;
 }
 
 .color-wheel {
-    width: 350px;
-    height: 350px;
+    width: 380px;
+    height: 380px;
     border-radius: 50%;
     background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
-    position: relative;
+    cursor: crosshair;
 }
 
-.wheel-pointer {
-    position: absolute;
-    top: 20%;
-    right: 20%;
-    width: 15px;
-    height: 15px;
-    border: 3px solid white;
+.wheel-outer-frame {
+    position: relative;
+    padding: 15px;
+    background: #1a0f0f;
     border-radius: 50%;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    border: 4px solid #3d2525;
 }
 
-.brightness-slider {
-    width: 100%;
-    height: 12px;
-    position: relative;
-}
-
-.slider-track {
-    width: 100%;
-    height: 100%;
-    border-radius: 10px;
-}
-
-.slider-thumb {
+.wheel-pointer.main {
     position: absolute;
     top: 50%;
-    left: 70%;
-    transform: translate(-50%, -50%);
-    width: 20px;
-    height: 20px;
-    background: white;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    border: 4px solid white;
     border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.img-btn {
+    position: relative;
+    background: none;
+    border: none;
     cursor: pointer;
+    width: 220px;
+}
+
+.btn-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #241313;
+    font-weight: bold;
+}
+
+.section-label {
+    color: #666;
+    font-size: 11px;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+}
+
+.btn {
+    width: 90%;
 }
 </style>

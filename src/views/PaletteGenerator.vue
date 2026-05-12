@@ -1,5 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router' // Импортируем роутер
+
 import cameraImg from '../assets/camera.png'
 import filmStripFrame from '../assets/film_strip.png'
 import btnGenImg from '../assets/кнопка2.png'
@@ -11,8 +13,14 @@ import replaceIcon from '../assets/swap.png'
 import editIcon from '../assets/edit.png'
 
 const palette = ref([])
+const router = useRouter()
 
 const generateRandomColor = () => '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
+
+// Инициализация при загрузке
+onMounted(() => {
+    generateInitial()
+})
 
 const generateInitial = () => {
     if (palette.value.length > 0) {
@@ -29,12 +37,8 @@ const addColor = () => {
 }
 
 const remove = (index) => {
-    // Если цветов больше 3, позволяем удалить
     if (palette.value.length > 3) {
         palette.value.splice(index, 1)
-    } else {
-        // Опционально: можно вывести уведомление
-        alert("Минимальное количество цветов — 3")
     }
 }
 
@@ -48,69 +52,57 @@ const editColor = (index) => {
 
 const copyToClipboard = async (text) => {
     await navigator.clipboard.writeText(text)
-    // Тут можно добавить алерт "Скопировано"
 }
 </script>
 
 <template>
     <div class="palette-wrapper">
         <img :src="cameraImg" class="camera-bg" alt="Camera">
-
         <div class="interface-layer">
             <h1 class="title">ГЕНЕРАТОР ПАЛИТРЫ</h1>
-
             <div class="main-layout">
                 <div class="film-container">
                     <div class="film-grid" v-if="palette.length > 0">
                         <div v-for="(item, index) in palette" :key="item.id" class="film-item">
-                            <button class="pin" @click="remove(index)" :disabled="palette.length <= 3"
-                                :class="{ 'pin-disabled': palette.length <= 3 }">
+                            <button class="pin" @click="remove(index)" :disabled="palette.length <= 3">
                                 <img :src="pinIcon">
                             </button>
-
                             <div class="film-inner">
                                 <div class="color-box" :style="{ backgroundColor: item.hex }">
-
                                     <div class="actions-overlay">
                                         <div class="action-buttons">
-                                            <button title="Копировать" @click.stop="copyToClipboard(item.hex)">
-                                                <img :src="copyIcon">
-                                            </button>
-                                            <button title="Изменить" @click.stop="editColor(index)">
-                                                <img :src="editIcon">
-                                            </button>
-                                            <button title="Заменить" @click.stop="item.hex = generateRandomColor()">
-                                                <img :src="replaceIcon">
-                                            </button>
+                                            <button @click.stop="copyToClipboard(item.hex)"><img
+                                                    :src="copyIcon"></button>
+                                            <button @click.stop="editColor(index)"><img :src="editIcon"></button>
+                                            <button @click.stop="item.hex = generateRandomColor()"><img
+                                                    :src="replaceIcon"></button>
                                         </div>
                                     </div>
-
                                     <div class="bottom-info">
                                         <div class="info-plate">
                                             <span class="hex-code">{{ item.hex }}</span>
-                                            <a href="ColorInfo" class="about-link" @click.stop.prevent>о цвете</a>
+                                            <router-link :to="`/palette/info/${item.hex.replace('#', '')}`"
+                                                class="about-link">
+                                                о цвете
+                                            </router-link>
                                         </div>
                                     </div>
-
                                 </div>
                                 <img :src="filmStripFrame" class="film-frame-overlay">
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="side-panel">
-                    <button class="img-btn" @click="generateInitial">
-                        <img :src="btnGenImg">
-                        <span class="btn-label">СГЕНЕРИРОВАТЬ</span>
-                    </button>
-                    <button class="img-btn" @click="addColor" :disabled="palette.length >= 9">
-                        <img :src="btnAddImg">
-                        <span class="btn-label">ДОБАВИТЬ</span>
-                    </button>
+                    <button class="img-btn" @click="generateInitial"><img :src="btnGenImg"><span
+                            class="btn-label">СГЕНЕРИРОВАТЬ</span></button>
+                    <button class="img-btn" @click="addColor" :disabled="palette.length >= 9"><img
+                            :src="btnAddImg"><span class="btn-label">ДОБАВИТЬ</span></button>
                 </div>
             </div>
         </div>
+
+        <router-view />
     </div>
 </template>
 
@@ -196,7 +188,6 @@ const copyToClipboard = async (text) => {
     cursor: default;
 }
 
-/* Слой для кнопок вверху */
 .actions-overlay {
     width: 100%;
     padding-top: 10px;
@@ -233,7 +224,6 @@ const copyToClipboard = async (text) => {
     height: 16px;
 }
 
-/* Слой для инфо внизу */
 .bottom-info {
     width: 100%;
     padding-bottom: 10px;
@@ -249,7 +239,6 @@ const copyToClipboard = async (text) => {
     flex-direction: column;
     align-items: center;
     pointer-events: auto;
-    /* Важно, чтобы ссылка работала */
 }
 
 .hex-code {
@@ -264,6 +253,7 @@ const copyToClipboard = async (text) => {
     font-size: 10px;
     text-decoration: underline;
     margin-top: 2px;
+    cursor: pointer;
 }
 
 .film-frame-overlay {
@@ -332,17 +322,13 @@ const copyToClipboard = async (text) => {
     cursor: not-allowed;
 }
 
-/* Стиль для заблокированной кнопки удаления */
 .pin:disabled {
     cursor: not-allowed;
     opacity: 0.5;
-    /* Делает пуговицу бледнее */
     filter: grayscale(1);
-    /* Делает её серой */
 }
 
 .pin-disabled img {
     transform: scale(0.8);
-    /* Можно немного уменьшить */
 }
 </style>
