@@ -4,6 +4,7 @@ import Register from './components/Register.vue'
 import Home from './views/Home.vue'
 import Favorites from './views/Favorites.vue'
 import ColorInfo from './views/ColorInfo.vue'
+import PaletteGenerator from './views/PaletteGenerator.vue'
 
 const routes = [
   { path: '/', redirect: '/home' },
@@ -20,7 +21,17 @@ const routes = [
     path: '/color-info/:color',
     component: ColorInfo,
     name: 'colorInfo'
-  }
+  },
+  {path: '/palette',
+    component: PaletteGenerator,
+    children: [
+      {
+        path: 'info/:hex',
+        name: 'ColorInfo',
+        component: ColorInfo,
+        props: true
+      }
+    ]}
 ]
 
 export const router = createRouter({
