@@ -1,19 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
-// Импортируй свои компоненты
-import ColorGenerator from '../views/ColorGenerator.vue' // Тот, что с винилом/полароидами
-import PaletteGenerator from '../views/PaletteGenerator.vue' // Тот, что с пленкой
+import ColorGenerator from '../views/ColorGenerator.vue'
+import PaletteGenerator from '../views/PaletteGenerator.vue'
+import ColorInfo from '../views/ColorInfo.vue' // Новый импорт
 
 const routes = [
-  {
-    path: '/',
-    name: 'Home',
-    component: ColorGenerator
-  },
-  {
-    path: '/palette',
-    name: 'Palette',
-    component: PaletteGenerator
-  }
+  { path: '/', component: ColorGenerator },
+  { path: '/palette', component: PaletteGenerator },
+  { path: '/color-info/:hex', name: 'ColorInfo', component: ColorInfo, props: true }
 ]
 
 const router = createRouter({
@@ -21,5 +14,4 @@ const router = createRouter({
   routes
 })
 
-// ОБЯЗАТЕЛЬНО: экспорт по умолчанию
 export default router

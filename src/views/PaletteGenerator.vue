@@ -1,13 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-// Замени пути на реальные ассеты!
 import cameraImg from '../assets/camera.png'
-import filmStripFrame from '../assets/film_strip.png' // Рамка плёнки
+import filmStripFrame from '../assets/film_strip.png'
 import btnGenImg from '../assets/кнопка2.png'
 import btnAddImg from '../assets/кнопка.png'
 import pinIcon from '../assets/btn_close.png'
 
-// Иконки для меню при наведении
 import copyIcon from '../assets/copy.png'
 import replaceIcon from '../assets/swap.png'
 import editIcon from '../assets/edit.png'
@@ -16,7 +14,6 @@ const palette = ref([])
 
 const generateRandomColor = () => '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
 
-// При генерации не сбрасываем количество, а обновляем существующие цвета
 const generateInitial = () => {
     if (palette.value.length > 0) {
         palette.value.forEach(item => item.hex = generateRandomColor())
@@ -25,14 +22,21 @@ const generateInitial = () => {
     }
 }
 
-// Добавление до 9 цветов
 const addColor = () => {
     if (palette.value.length < 9) {
         palette.value.push({ hex: generateRandomColor(), id: Math.random() })
     }
 }
 
-const remove = (index) => palette.value.splice(index, 1)
+const remove = (index) => {
+    // Если цветов больше 3, позволяем удалить
+    if (palette.value.length > 3) {
+        palette.value.splice(index, 1)
+    } else {
+        // Опционально: можно вывести уведомление
+        alert("Минимальное количество цветов — 3")
+    }
+}
 
 const editColor = (index) => {
     const input = document.createElement('input')
@@ -40,6 +44,11 @@ const editColor = (index) => {
     input.value = palette.value[index].hex
     input.oninput = (e) => { palette.value[index].hex = e.target.value }
     input.click()
+}
+
+const copyToClipboard = async (text) => {
+    await navigator.clipboard.writeText(text)
+    // Тут можно добавить алерт "Скопировано"
 }
 </script>
 
@@ -54,22 +63,35 @@ const editColor = (index) => {
                 <div class="film-container">
                     <div class="film-grid" v-if="palette.length > 0">
                         <div v-for="(item, index) in palette" :key="item.id" class="film-item">
-                            <button class="pin" @click="remove(index)"><img :src="pinIcon"></button>
+                            <button class="pin" @click="remove(index)" :disabled="palette.length <= 3"
+                                :class="{ 'pin-disabled': palette.length <= 3 }">
+                                <img :src="pinIcon">
+                            </button>
 
                             <div class="film-inner">
                                 <div class="color-box" :style="{ backgroundColor: item.hex }">
-                                    <div class="inner-info">
-                                        <span class="hex-code">{{ item.hex }}</span>
-                                        <a href="#" class="about-link" @click.stop.prevent>о цвете</a>
+
+                                    <div class="actions-overlay">
+                                        <div class="action-buttons">
+                                            <button title="Копировать" @click.stop="copyToClipboard(item.hex)">
+                                                <img :src="copyIcon">
+                                            </button>
+                                            <button title="Изменить" @click.stop="editColor(index)">
+                                                <img :src="editIcon">
+                                            </button>
+                                            <button title="Заменить" @click.stop="item.hex = generateRandomColor()">
+                                                <img :src="replaceIcon">
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div class="hover-actions">
-                                        <button @click.stop="navigator.clipboard.writeText(item.hex)"><img
-                                                :src="copyIcon"></button>
-                                        <button @click.stop="editColor(index)"><img :src="editIcon"></button>
-                                        <button @click.stop="item.hex = generateRandomColor()"><img
-                                                :src="replaceIcon"></button>
+                                    <div class="bottom-info">
+                                        <div class="info-plate">
+                                            <span class="hex-code">{{ item.hex }}</span>
+                                            <a href="ColorInfo" class="about-link" @click.stop.prevent>о цвете</a>
+                                        </div>
                                     </div>
+
                                 </div>
                                 <img :src="filmStripFrame" class="film-frame-overlay">
                             </div>
@@ -98,7 +120,6 @@ const editColor = (index) => {
     width: 100vw;
     height: 100vh;
     background: #241313;
-    /* Полосатый фон как на макете */
     background-image: repeating-linear-gradient(0deg, #241313, #241313 40px, #331a1a 40px, #331a1a 80px);
     overflow: hidden;
 }
@@ -136,32 +157,24 @@ const editColor = (index) => {
     width: 95%;
 }
 
-/* Контейнер сетки, убирающий черное пространство */
 .film-container {
     flex: 1;
     display: flex;
     justify-content: center;
-    background: none;
 }
 
 .film-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0;
-    /* Убираем зазоры между кадрами плёнки */
-    background: black;
-    /* Чтобы стыки казались единой лентой */
     padding: 5px;
-    border-radius: 4px;
 }
 
 .film-item {
     position: relative;
-    width: 170px;
-    height: 230px;
+    width: 175px;
+    height: 235px;
 }
-
-/* Увеличили блоки */
 
 .film-inner {
     position: relative;
@@ -178,9 +191,79 @@ const editColor = (index) => {
     z-index: 1;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    cursor: default;
+}
+
+/* Слой для кнопок вверху */
+.actions-overlay {
+    width: 100%;
+    padding-top: 10px;
+    display: flex;
     justify-content: center;
-    align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.color-box:hover .actions-overlay {
+    opacity: 1;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 4px 8px;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.action-buttons button {
+    background: none;
+    border: none;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+}
+
+.action-buttons img {
+    width: 16px;
+    height: 16px;
+}
+
+/* Слой для инфо внизу */
+.bottom-info {
+    width: 100%;
+    padding-bottom: 10px;
+    display: flex;
+    justify-content: center;
+}
+
+.info-plate {
+    background: rgba(255, 255, 255, 0.85);
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+    /* Важно, чтобы ссылка работала */
+}
+
+.hex-code {
+    color: #241313;
+    font-weight: bold;
+    font-size: 13px;
+    font-family: monospace;
+}
+
+.about-link {
+    color: #241313;
+    font-size: 10px;
+    text-decoration: underline;
+    margin-top: 2px;
 }
 
 .film-frame-overlay {
@@ -191,62 +274,6 @@ const editColor = (index) => {
     z-index: 2;
     pointer-events: none;
     object-fit: stretch;
-    /* Растягиваем рамку */
-}
-
-/* Инфо внутри блока */
-.inner-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    z-index: 3;
-    background: rgba(255, 255, 255, 0.85);
-    /* Читабельный фон */
-    padding: 5px 12px;
-    border-radius: 4px;
-}
-
-.hex-code {
-    color: #241313;
-    font-weight: bold;
-    font-size: 14px;
-    font-family: monospace;
-}
-
-.about-link {
-    color: #241313;
-    font-size: 10px;
-    text-decoration: underline;
-}
-
-.hover-actions {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    opacity: 0;
-    transition: 0.2s;
-    z-index: 10;
-}
-
-.color-box:hover .hover-actions {
-    opacity: 1;
-}
-
-.hover-actions button {
-    background: white;
-    border: none;
-    padding: 5px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.hover-actions img {
-    width: 18px;
-    height: 18px;
 }
 
 .pin {
@@ -263,7 +290,6 @@ const editColor = (index) => {
     width: 28px;
 }
 
-/* Фиксированная панель справа */
 .side-panel {
     display: flex;
     flex-direction: column;
@@ -279,7 +305,7 @@ const editColor = (index) => {
     border: none;
     cursor: pointer;
     width: 200px;
-    transition: transform 0.1s;
+    transition: 0.1s;
 }
 
 .img-btn img {
@@ -306,16 +332,17 @@ const editColor = (index) => {
     cursor: not-allowed;
 }
 
-.decor-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 20px;
+/* Стиль для заблокированной кнопки удаления */
+.pin:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    /* Делает пуговицу бледнее */
+    filter: grayscale(1);
+    /* Делает её серой */
 }
 
-.decor-buttons img {
-    width: 60px;
-    height: 60px;
-    object-fit: contain;
+.pin-disabled img {
+    transform: scale(0.8);
+    /* Можно немного уменьшить */
 }
 </style>
