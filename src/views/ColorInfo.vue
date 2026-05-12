@@ -1,260 +1,277 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import ColorNamer from 'color-namer'
+import { ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import btnGenImg from '../assets/кнопка2.png'
 
-const route = useRoute()
 const router = useRouter()
-const colorHex = ref('#' + route.params.color)
-const colorName = ref('')
-const complimentaryColors = ref([])
+const route = useRoute()
 
-onMounted(() => {
-  try {
-    const names = ColorNamer(colorHex.value)
-    colorName.value = names.ntc?.[0]?.name || 
-                     names.basic?.[0]?.name || 
-                     names.html?.[0]?.name ||
-                     'Unknown Color'
-    
-    // Расчет дополнительных цветов
-    const rgb = hexToRgb(colorHex.value)
-    if (rgb) {
-      complimentaryColors.value = [
-        { name: 'Дополнительный', color: rgbToHex(255 - rgb.r, 255 - rgb.g, 255 - rgb.b) },
-        { name: 'Аналоговый 1', color: rgbToHex(rgb.r + 30, rgb.g - 30, rgb.b - 30) },
-        { name: 'Аналоговый 2', color: rgbToHex(rgb.r - 30, rgb.g + 30, rgb.b + 30) },
-        { name: 'Триада 1', color: rgbToHex(rgb.r + 50, rgb.g - 20, rgb.b - 20) },
-        { name: 'Триада 2', color: rgbToHex(rgb.r - 20, rgb.g + 50, rgb.b - 20) }
-      ]
-    }
-  } catch (error) {
-    console.error('Ошибка:', error)
-  }
+const baseHue = ref(parseInt(route.params.hex, 16) || 0)
+const currentHex = ref('#' + route.params.hex)
+const wheelRef = ref(null)
+
+const selectedScheme = ref('analogous')
+
+const schemes = {
+    monochromatic: { label: 'Монохром', offsets: [0, 0, 0, 0] }, 
+    analogous: { label: 'Аналоговая', offsets: [-30, -15, 15, 30] },
+    complementary: { label: 'Контраст', offsets: [180, 180, 0, 0] },
+    triadic: { label: 'Триада', offsets: [120, 240, 0, 0] },
+    tetradic: { label: 'Тетрада', offsets: [90, 180, 270, 0] }
+}
+
+const computedPalette = computed(() => {
+    const h = getHueFromHex(currentHex.value)
+    const scheme = schemes[selectedScheme.value]
+
+    const palette = [currentHex.value]
+
+    scheme.offsets.forEach(offset => {
+        if (offset !== 0 || palette.length < 5) {
+            let newHue = (h + offset) % 360
+            if (newHue < 0) newHue += 360
+            palette.push(hslToHex(newHue, 80, 50))
+        }
+    })
+
+    return palette.slice(0, 5)
 })
 
-const hexToRgb = (hex) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null
+const handleWheelClick = (event) => {
+    if (!wheelRef.value) return
+    const rect = wheelRef.value.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const x = event.clientX - centerX
+    const y = event.clientY - centerY
+    let angle = Math.atan2(y, x) * (180 / Math.PI)
+    if (angle < 0) angle += 360
+    currentHex.value = hslToHex(angle, 80, 50)
 }
 
-const rgbToHex = (r, g, b) => {
-  const clamp = (num) => Math.min(255, Math.max(0, num))
-  return '#' + [clamp(r), clamp(g), clamp(b)].map(x => {
-    const hex = Math.round(x).toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }).join('')
+function getHueFromHex(hex) {
+    let r = parseInt(hex.slice(1, 3), 16) / 255
+    let g = parseInt(hex.slice(3, 5), 16) / 255
+    let b = parseInt(hex.slice(5, 7), 16) / 255
+    let max = Math.max(r, g, b), min = Math.min(r, g, b)
+    let h, d = max - min
+    if (max === min) h = 0
+    else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break
+            case g: h = (b - r) / d + 2; break
+            case b: h = (r - g) / d + 4; break
+        }
+        h /= 6
+    }
+    return h * 360
 }
 
-const copyColor = async (color) => {
-  try {
-    await navigator.clipboard.writeText(color)
-    alert(`Цвет ${color} скопирован!`)
-  } catch (err) {
-    console.error('Ошибка копирования:', err)
-  }
+function hslToHex(h, s, l) {
+    l /= 100; s /= 100
+    const a = s * Math.min(l, 1 - l)
+    const f = n => {
+        const k = (n + h / 30) % 12
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
+        return Math.round(255 * color).toString(16).padStart(2, '0')
+    }
+    return `#${f(0)}${f(8)}${f(4)}`
 }
 </script>
 
 <template>
-  <div class="color-info-container">
-    <nav class="navbar">
-      <div class="nav-content">
-        <router-link to="/favorites" class="back-link">← Назад к избранному</router-link>
-        <h1>Информация о цвете</h1>
-      </div>
-    </nav>
+    <div class="color-details-page">
 
-    <div class="color-info-content">
-      <div class="main-color-card">
-        <div class="main-color-preview" :style="{ backgroundColor: colorHex }"></div>
-        <div class="main-color-details">
-          <h2>{{ colorName }}</h2>
-          <div class="color-code">{{ colorHex }}</div>
-          <button @click="copyColor(colorHex)" class="copy-main-btn">Копировать цвет</button>
-        </div>
-      </div>
+        <div class="interface-layer">
+            <h1 class="title">ГАРМОНИЯ ЦВЕТА</h1>
 
-      <div class="complimentary-section">
-        <h3>Сочетания цветов</h3>
-        <div class="complimentary-grid">
-          <div v-for="(color, index) in complimentaryColors" :key="index" class="complimentary-card">
-            <div class="complimentary-preview" :style="{ backgroundColor: color.color }"></div>
-            <div class="complimentary-info">
-              <div class="complimentary-name">{{ color.name }}</div>
-              <div class="complimentary-code">{{ color.color }}</div>
-              <button @click="copyColor(color.color)" class="copy-complimentary-btn">Копировать</button>
+            <div class="main-layout">
+                <div class="info-side">
+                    <div class="glass-card scheme-selector">
+                        <label class="section-label">ПРАВИЛО СОЧЕТАНИЯ</label>
+                        <div class="scheme-buttons">
+                            <button v-for="(data, key) in schemes" :key="key"
+                                :class="{ active: selectedScheme === key }" @click="selectedScheme = key">
+                                {{ data.label }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="glass-card result-palette">
+                        <label class="section-label">ВЫЧИСЛЕННАЯ ПАЛИТРА</label>
+                        <div class="palette-display">
+                            <div v-for="(color, i) in computedPalette" :key="i" class="palette-column">
+                                <div class="color-pillar" :style="{ backgroundColor: color }">
+                                    <span class="pillar-hex">{{ color }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="img-btn back-btn" @click="router.push('/palette')">
+                        <img :src="btnGenImg" class="btn">
+                        <span class="btn-label">НАЗАД</span>
+                    </button>
+                </div>
+
+                <div class="wheel-side">
+                    <div class="wheel-outer-frame">
+                        <div class="color-wheel" ref="wheelRef" @mousedown="handleWheelClick"></div>
+                        <div class="wheel-pointer main" :style="{ backgroundColor: currentHex }"></div>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
     </div>
-  </div>
 </template>
 
 <style scoped>
-.color-info-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #4a2c2c 0%, #241313 100%);
+.color-details-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #241313;
+    background-image: repeating-linear-gradient(0deg, #241313, #241313 40px, #331a1a 40px, #331a1a 80px);
+    z-index: 2000;
+    overflow: hidden;
+    color: white;
 }
 
-.navbar {
-  position: sticky;
-  top: 0;
-  background: rgba(200, 99, 135, 0.45);
-  backdrop-filter: blur(10px);
-  padding: 15px 30px;
-  z-index: 100;
+
+.interface-layer {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
 }
 
-.nav-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
+.main-layout {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    max-width: 1200px;
 }
 
-.back-link {
-  color: white;
-  text-decoration: none;
-  font-weight: bold;
-  transition: transform 0.2s;
+.glass-card {
+    background: rgba(0, 0, 0, 0.6);
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 20px;
 }
 
-.back-link:hover {
-  transform: scale(1.05);
+.scheme-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
-.nav-content h1 {
-  color: white;
-  font-size: 24px;
+.scheme-buttons button {
+    background: #1a0f0f;
+    border: 1px solid #3d2525;
+    color: #888;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
 }
 
-.color-info-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 20px;
+.scheme-buttons button.active {
+    background: #3d2525;
+    color: white;
+    border-color: #666;
 }
 
-.main-color-card {
-  background: white;
-  border-radius: 20px;
-  overflow: hidden;
-  margin-bottom: 40px;
-  display: flex;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+.palette-display {
+    display: flex;
+    gap: 10px;
+    height: 180px;
+    margin-top: 10px;
 }
 
-.main-color-preview {
-  width: 200px;
-  height: 200px;
+.palette-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
-.main-color-details {
-  flex: 1;
-  padding: 30px;
-  text-align: center;
+.color-pillar {
+    height: 100%;
+    width: 100%;
+    border-radius: 8px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.main-color-details h2 {
-  font-size: 28px;
-  color: #4a2c2c;
-  margin-bottom: 10px;
+.pillar-hex {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 4px;
 }
 
-.color-code {
-  font-size: 20px;
-  font-family: monospace;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: #666;
+.color-wheel {
+    width: 380px;
+    height: 380px;
+    border-radius: 50%;
+    background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+    cursor: crosshair;
 }
 
-.copy-main-btn {
-  padding: 12px 24px;
-  background: #4a2c2c;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: transform 0.2s;
+.wheel-outer-frame {
+    position: relative;
+    padding: 15px;
+    background: #1a0f0f;
+    border-radius: 50%;
+    border: 4px solid #3d2525;
 }
 
-.copy-main-btn:hover {
-  transform: scale(1.05);
+.wheel-pointer.main {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    border: 4px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
 }
 
-.complimentary-section {
-  background: white;
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+.img-btn {
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 220px;
 }
 
-.complimentary-section h3 {
-  text-align: center;
-  font-size: 24px;
-  color: #4a2c2c;
-  margin-bottom: 30px;
+.btn-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #241313;
+    font-weight: bold;
 }
 
-.complimentary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+.section-label {
+    color: #666;
+    font-size: 11px;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
 }
 
-.complimentary-card {
-  background: #f9f9f9;
-  border-radius: 12px;
-  overflow: hidden;
-  text-align: center;
-  transition: transform 0.3s;
-}
-
-.complimentary-card:hover {
-  transform: translateY(-5px);
-}
-
-.complimentary-preview {
-  height: 120px;
-}
-
-.complimentary-info {
-  padding: 15px;
-}
-
-.complimentary-name {
-  font-weight: bold;
-  color: #4a2c2c;
-  margin-bottom: 5px;
-}
-
-.complimentary-code {
-  font-family: monospace;
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 10px;
-}
-
-.copy-complimentary-btn {
-  padding: 6px 12px;
-  background: #4a2c2c;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: transform 0.2s;
-}
-
-.copy-complimentary-btn:hover {
-  transform: scale(1.05);
+.btn {
+    width: 90%;
 }
 </style>
